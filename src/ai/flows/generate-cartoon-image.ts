@@ -74,11 +74,11 @@ const generateCartoonImageFlow = ai.defineFlow(
         },
       ],
       config: {
-        responseModalities: ['IMAGE'],
+        responseModalities: ['TEXT', 'IMAGE'],
       },
     });
 
-    if (!media.url) {
+    if (!media?.url) {
       throw new Error('Image generation failed.');
     }
     
