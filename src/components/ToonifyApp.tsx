@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, ChangeEvent, useMemo } from 'react';
+import { useState, useRef, ChangeEvent, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Download, Palette, PenLine, Sparkles, Upload, X, LoaderCircle } from 'lucide-react';
@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { suggestCartoonStyles } from '@/ai/flows/suggest-cartoon-styles';
+import { generateCartoonImage } from '@/ai/flows/generate-cartoon-image';
 
 const defaultStyles = ['Classic Comic', 'Anime', 'Pixar 3D', 'Chibi', 'Abstract Art', 'South Park'];
 const palettes = [
@@ -24,8 +25,10 @@ const palettes = [
 
 export function ToonifyApp() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [suggestedStyles, setSuggestedStyles] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [step, setStep] = useState(1);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [selectedPalette, setSelectedPalette] = useState<string>('Vibrant');
@@ -37,6 +40,36 @@ export function ToonifyApp() {
     const combined = [...suggestedStyles, ...defaultStyles];
     return [...new Set(combined)];
   }, [suggestedStyles]);
+
+  useEffect(() => {
+    if (step === 4 && uploadedImage && selectedStyle) {
+      const generate = async () => {
+        setIsGenerating(true);
+        setGeneratedImage(null);
+        try {
+          const result = await generateCartoonImage({
+            photoDataUri: uploadedImage,
+            style: selectedStyle,
+            palette: selectedPalette,
+            lineArtDetail: lineArtDetail[0],
+          });
+          setGeneratedImage(result.generatedImageUri);
+        } catch (error) {
+          console.error('AI image generation failed:', error);
+          toast({
+            title: 'AI failed to create image',
+            description: 'Something went wrong. Please try again or change settings.',
+            variant: 'destructive',
+          });
+          setStep(3); // Go back to customization
+        } finally {
+          setIsGenerating(false);
+        }
+      };
+      generate();
+    }
+  }, [step, uploadedImage, selectedStyle, selectedPalette, lineArtDetail, toast]);
+
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -50,11 +83,12 @@ export function ToonifyApp() {
         return;
       }
 
-      setIsLoading(true);
+      setIsSuggesting(true);
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
         setUploadedImage(dataUrl);
+        setGeneratedImage(null); // Clear previous generation
         try {
           const result = await suggestCartoonStyles({ photoDataUri: dataUrl });
           setSuggestedStyles(result.suggestedStyles);
@@ -67,7 +101,7 @@ export function ToonifyApp() {
           });
           setSuggestedStyles([]);
         } finally {
-          setIsLoading(false);
+          setIsSuggesting(false);
         }
       };
       reader.readAsDataURL(file);
@@ -76,8 +110,10 @@ export function ToonifyApp() {
 
   const handleReset = () => {
     setUploadedImage(null);
+    setGeneratedImage(null);
     setSuggestedStyles([]);
-    setIsLoading(false);
+    setIsSuggesting(false);
+    setIsGenerating(false);
     setStep(1);
     setSelectedStyle(null);
     setSelectedPalette('Vibrant');
@@ -88,9 +124,11 @@ export function ToonifyApp() {
   };
 
   const handleDownload = () => {
-    if (!uploadedImage) return;
+    const imageToDownload = generatedImage || uploadedImage;
+    if (!imageToDownload) return;
+
     const link = document.createElement('a');
-    link.href = uploadedImage;
+    link.href = imageToDownload;
     link.download = `toonified-image.png`;
     document.body.appendChild(link);
     link.click();
@@ -106,6 +144,8 @@ export function ToonifyApp() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
     exit: { opacity: 0, y: -50, transition: { duration: 0.3, ease: 'easeIn' } },
   };
+
+  const displayImage = generatedImage || uploadedImage;
 
   return (
     <Card className="w-full max-w-6xl shadow-2xl shadow-primary/10 border-primary/20 overflow-hidden">
@@ -140,11 +180,17 @@ export function ToonifyApp() {
                 initial={{scale: 0.9, opacity: 0}}
                 animate={{scale: 1, opacity: 1, transition: {delay: 0.2}}}
               >
-                <Image src={uploadedImage} alt="Uploaded photo" layout="fill" objectFit="cover" data-ai-hint="portrait photo" />
+                {isGenerating && (
+                  <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10">
+                    <LoaderCircle className="w-12 h-12 animate-spin text-primary" />
+                    <p className="mt-4 text-muted-foreground font-medium">Toonifying your image...</p>
+                  </div>
+                )}
+                {displayImage && <Image src={displayImage} alt="User photo" layout="fill" objectFit="cover" data-ai-hint="portrait photo" />}
               </motion.div>
-               <Button onClick={handleDownload} className="mt-6 bg-accent hover:bg-accent/90" size="lg" disabled={!selectedStyle}>
+               <Button onClick={handleDownload} className="mt-6 bg-accent hover:bg-accent/90" size="lg" disabled={isGenerating || !displayImage}>
                 <Download className="mr-2 h-5 w-5" />
-                Download
+                {isGenerating ? 'Please wait...' : 'Download'}
               </Button>
             </div>
             <div className="p-6 sm:p-8 flex flex-col">
@@ -153,8 +199,8 @@ export function ToonifyApp() {
                 <AnimatePresence mode="wait">
                   {step === 1 && (
                     <motion.div key="step1" variants={cardVariants} initial="hidden" animate="visible" exit="exit">
-                      <h3 className="font-bold text-lg mb-4 flex items-center"><Sparkles className="mr-2 text-primary h-5 w-5" /> Select an AI Style</h3>
-                      {isLoading ? (
+                      <h3 className="font-bold text-lg mb-4 flex items-center"><Sparkles className="mr-2 text-primary h-5 w-5" /> 1. Select an AI Style</h3>
+                      {isSuggesting ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-md" />)}
                         </div>
@@ -170,13 +216,14 @@ export function ToonifyApp() {
                           ))}
                         </div>
                       )}
-                      {isLoading && <div className="flex items-center justify-center mt-4 text-muted-foreground"><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>AI is analyzing your photo...</div>}
+                      {isSuggesting && <div className="flex items-center justify-center mt-4 text-muted-foreground"><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>AI is analyzing your photo...</div>}
                     </motion.div>
                   )}
                   {step >= 2 && selectedStyle && (
                     <motion.div key="step2" variants={cardVariants} initial="hidden" animate="visible" exit="exit">
-                      <h3 className="font-bold text-lg mb-4 flex items-center"><Palette className="mr-2 text-primary h-5 w-5" /> Choose Color Palette</h3>
-                      <RadioGroup value={selectedPalette} onValueChange={(val) => {
+                       <Button variant="link" onClick={() => setStep(1)} className="p-0 h-auto mb-2 text-muted-foreground">Change Style</Button>
+                       <h3 className="font-bold text-lg mb-4 flex items-center"><Palette className="mr-2 text-primary h-5 w-5" /> 2. Choose Color Palette</h3>
+                       <RadioGroup value={selectedPalette} onValueChange={(val) => {
                           setSelectedPalette(val);
                           setStep(3);
                         }} className="grid sm:grid-cols-2 gap-4">
@@ -194,12 +241,17 @@ export function ToonifyApp() {
                   )}
                    {step >= 3 && selectedStyle && (
                      <motion.div key="step3" variants={cardVariants} initial="hidden" animate="visible" exit="exit">
-                       <h3 className="font-bold text-lg mb-4 flex items-center"><PenLine className="mr-2 text-primary h-5 w-5" /> Adjust Line Art Detail</h3>
-                       <div className="flex items-center gap-4">
+                        <Button variant="link" onClick={() => setStep(2)} className="p-0 h-auto mb-2 text-muted-foreground">Change Palette</Button>
+                        <h3 className="font-bold text-lg mb-4 flex items-center"><PenLine className="mr-2 text-primary h-5 w-5" /> 3. Adjust Line Art</h3>
+                        <div className="flex items-center gap-4 pt-2">
                           <span className="text-sm text-muted-foreground">Soft</span>
                           <Slider defaultValue={[50]} max={100} step={1} value={lineArtDetail} onValueChange={setLineArtDetail} />
                           <span className="text-sm text-muted-foreground">Bold</span>
-                       </div>
+                        </div>
+                        <Button size="lg" className="mt-8 w-full" onClick={() => setStep(4)}>
+                            Toonify!
+                            <ArrowRight className="ml-2 h-5 w-5"/>
+                        </Button>
                     </motion.div>
                   )}
                 </AnimatePresence>
