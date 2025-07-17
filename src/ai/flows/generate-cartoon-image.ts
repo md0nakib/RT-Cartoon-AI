@@ -67,7 +67,7 @@ const generateCartoonImageFlow = ai.defineFlow(
       model: 'googleai/gemini-2.0-flash-preview-image-generation',
       prompt: [
         { media: { url: input.photoDataUri } },
-        { text: `Generate an image of the subject in a cartoon style.
+        { text: `Generate a high-quality, professional, and visually appealing image of the subject in a cartoon style.
           Style: ${input.style}.
           Color Palette: ${input.palette}.
           Line Art Detail: ${input.lineArtDetail}/100.`
