@@ -9,7 +9,7 @@ export default function Home() {
           <Wand2 className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
           <div>
             <h1 className="text-3xl sm:text-4xl font-headline font-bold text-foreground">
-              RT Carton Ai
+              RT cartoon AO
             </h1>
             <p className="text-sm sm:text-base text-muted-foreground mt-1">
               Turn your photos into cartoons with AI
@@ -21,7 +21,7 @@ export default function Home() {
         <ToonifyApp />
       </main>
       <footer className="w-full max-w-6xl mt-8 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} RT Carton Ai. All Rights Reserved.</p>
+        <p>&copy; {new Date().getFullYear()} RT cartoon AO. All Rights Reserved.</p>
       </footer>
     </div>
   );

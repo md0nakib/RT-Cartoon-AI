@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'RT Carton Ai',
+  title: 'RT cartoon AO',
   description: 'Transform your photos into amazing cartoons with the power of AI.',
 };
 
