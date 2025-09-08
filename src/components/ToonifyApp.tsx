@@ -129,7 +129,7 @@ export function ToonifyApp() {
 
     const link = document.createElement('a');
     link.href = imageToDownload;
-    link.download = `RT AI Photo.png`;
+    link.download = `RT_Cartoon_AI_Photo.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
